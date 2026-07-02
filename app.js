@@ -311,7 +311,8 @@ async function speak(text) {
 
 async function speakGemini(text) {
   const payload = {
-    contents: [{ parts: [{ text }] }],
+    // the "Say …:" prefix is required — without it the TTS model rejects the request
+    contents: [{ parts: [{ text: 'Say in a warm, clear British examiner voice: ' + text }] }],
     generationConfig: {
       responseModalities: ['AUDIO'],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } },
