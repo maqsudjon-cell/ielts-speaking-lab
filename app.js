@@ -20,7 +20,8 @@ const store = {
 };
 
 /* ================= settings ================= */
-let settings = store.get('ielts_settings_v1', { worker: '', key: '', tts: 'gemini', auto: 'on' });
+const DEFAULT_WORKER = 'https://ielts-examiner.maqsudjon-polatov.workers.dev';
+let settings = store.get('ielts_settings_v1', { worker: DEFAULT_WORKER, key: '', tts: 'gemini', auto: 'on' });
 const CHAT_MODEL = 'gemini-2.5-flash';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 const TTS_VOICE = 'Kore';
