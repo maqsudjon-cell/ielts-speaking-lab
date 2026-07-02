@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IELTS Speaking — AI Examiner</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #05060f;
+  --panel: rgba(13, 17, 36, .72);
+  --panel-solid: #0d1124;
+  --stroke: rgba(120, 160, 255, .18);
+  --text: #eaf0ff;
+  --muted: #8b95c9;
+  --cyan: #22d3ee;
+  --violet: #a78bfa;
+  --pink: #f472b6;
+  --green: #34d399;
+  --red: #fb7185;
+  --amber: #fbbf24;
+  --glow-cyan: 0 0 24px rgba(34, 211, 238, .45);
+  --radius: 18px;
+  font-size: 16px;
+}
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text); overflow: hidden;
+  font-family: "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+button { font-family: inherit; }
+
+/* ---------- animated backdrop ---------- */
+#stars {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(167, 139, 250, .16), transparent 60%),
+    radial-gradient(1100px 600px at 110% 10%, rgba(34, 211, 238, .14), transparent 60%),
+    radial-gradient(800px 800px at 50% 120%, rgba(244, 114, 182, .10), transparent 60%);
+}
+.grid-floor {
+  position: fixed; left: -20%; right: -20%; bottom: -12%; height: 46%; z-index: 0; pointer-events: none;
+  background:
+    linear-gradient(transparent 0, rgba(5, 6, 15, .9) 90%),
+    repeating-linear-gradient(90deg, rgba(99, 140, 255, .14) 0 1px, transparent 1px 70px),
+    repeating-linear-gradient(0deg, rgba(99, 140, 255, .14) 0 1px, transparent 1px 44px);
+  transform: perspective(500px) rotateX(60deg);
+  mask-image: linear-gradient(transparent, #000 30%);
+}
+body[data-mode="ar"][data-screen="app"] #stars,
+body[data-mode="ar"][data-screen="app"] .grid-floor { display: none; }
+
+/* ---------- camera layer ---------- */
+#cam {
+  position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  transform: scaleX(-1); z-index: 0; display: none; background: #000;
+}
+body[data-mode="ar"][data-screen="app"] #cam { display: block; }
+#camShade { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: none;
+  background: linear-gradient(180deg, rgba(5,6,15,.55), transparent 22%, transparent 72%, rgba(5,6,15,.66));
+}
+body[data-mode="ar"][data-screen="app"] #camShade { display: block; }
+
+.screen { position: fixed; inset: 0; z-index: 2; display: none; }
+body[data-screen="landing"] #landing { display: flex; }
+body[data-screen="app"] #app { display: block; }
+
+/* ---------- landing ---------- */
+#landing { flex-direction: column; align-items: center; justify-content: center; gap: 34px; padding: 24px; }
+.brand { text-align: center; }
+.brand .eyebrow {
+  letter-spacing: .45em; text-transform: uppercase; font-size: 11px; color: var(--cyan);
+  text-shadow: var(--glow-cyan);
+}
+.brand h1 {
+  margin: 10px 0 6px; font-size: clamp(30px, 6vw, 54px); font-weight: 800; letter-spacing: .01em;
+  background: linear-gradient(92deg, #fff 10%, var(--cyan) 45%, var(--violet) 80%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.brand p { margin: 0; color: var(--muted); font-size: 14px; }
+.modes { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.mode-card {
+  width: min(320px, 84vw); padding: 26px 24px; border-radius: 24px; cursor: pointer; text-align: left;
+  background: var(--panel); border: 1px solid var(--stroke); color: var(--text);
+  backdrop-filter: blur(14px); transition: transform .18s ease, border-color .18s, box-shadow .18s;
+}
+.mode-card:hover { transform: translateY(-4px); border-color: rgba(34,211,238,.55); box-shadow: var(--glow-cyan); }
+.mode-card .ic { font-size: 34px; }
+.mode-card h2 { margin: 12px 0 6px; font-size: 20px; }
+.mode-card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.mode-card .chip { margin-top: 14px; }
+.landing-foot { color: var(--muted); font-size: 12.5px; display: flex; gap: 18px; align-items: center; }
+.link-btn { background: none; border: none; color: var(--cyan); cursor: pointer; font-size: 12.5px; text-decoration: underline; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px;
+  font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--stroke); color: var(--muted); background: rgba(10, 14, 30, .5);
+}
+.chip .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--green); box-shadow: 0 0 10px var(--green); }
+
+/* ---------- app HUD ---------- */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+  display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+}
+.hud-btn {
+  height: 44px; min-width: 44px; padding: 0 14px; border-radius: 14px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--stroke); color: var(--text);
+  backdrop-filter: blur(12px); font-size: 15px; transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.hud-btn:hover { border-color: rgba(34,211,238,.6); box-shadow: var(--glow-cyan); }
+.hud-btn:active { transform: scale(.96); }
+.hud-btn.active { border-color: var(--cyan); box-shadow: var(--glow-cyan); color: var(--cyan); }
+.hud-btn.danger.active { border-color: var(--red); box-shadow: 0 0 22px rgba(251,113,133,.5); color: var(--red); }
+#statusChip { margin-left: auto; }
+#partChip { font-weight: 700; color: var(--cyan); border-color: rgba(34,211,238,.4); }
+
+/* ---------- examiner orb ---------- */
+#orbWrap {
+  position: fixed; z-index: 25; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  left: 50%; top: 16%; transform: translateX(-50%); transition: all .45s cubic-bezier(.5,0,.2,1);
+  pointer-events: none;
+}
+body[data-mode="ar"][data-screen="app"] #orbWrap {
+  left: 20px; top: calc(70px + env(safe-area-inset-top)); transform: none; align-items: flex-start;
+}
+#orb {
+  --level: 0;
+  width: 170px; height: 170px; border-radius: 50%; position: relative;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(255,255,255,.85), transparent 28%),
+    radial-gradient(circle at 60% 65%, var(--cyan), transparent 62%),
+    radial-gradient(circle at 40% 60%, var(--violet), transparent 70%),
+    radial-gradient(circle, #101638 40%, #060814 75%);
+  box-shadow:
+    0 0 40px rgba(34,211,238,.35), 0 0 120px rgba(167,139,250,.25),
+    inset 0 0 34px rgba(34,211,238,.35);
+  animation: breathe 4.2s ease-in-out infinite;
+  transform: scale(calc(1 + var(--level) * .16));
+  transition: width .45s, height .45s;
+}
+#orb::after {
+  content: ""; position: absolute; inset: -12px; border-radius: 50%;
+  border: 1.5px solid rgba(34,211,238,.35); border-top-color: rgba(167,139,250,.75);
+  animation: spin 7s linear infinite;
+}
+#orb::before {
+  content: ""; position: absolute; inset: -26px; border-radius: 50%;
+  border: 1px dashed rgba(120,160,255,.22); animation: spin 16s linear infinite reverse;
+}
+body[data-mode="ar"][data-screen="app"] #orb { width: 84px; height: 84px; }
+body.orb-speaking #orb { animation: none; }
+body.orb-listening #orb { box-shadow: 0 0 46px rgba(52,211,153,.5), inset 0 0 34px rgba(52,211,153,.4); }
+body.orb-thinking #orb::after { animation-duration: 1.1s; }
+@keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+#orbTag { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+#orbTag b { color: var(--text); }
+
+/* ---------- voice-mode transcript ---------- */
+#transcript {
+  position: fixed; z-index: 20; left: 50%; transform: translateX(-50%);
+  top: calc(16% + 250px); bottom: 150px; width: min(700px, 92vw);
+  overflow-y: auto; display: none; flex-direction: column; gap: 10px; padding: 6px;
+  mask-image: linear-gradient(transparent, #000 6%, #000 94%, transparent);
+}
+body[data-mode="voice"][data-screen="app"] #transcript { display: flex; }
+.t-row { display: flex; }
+.t-row.you { justify-content: flex-end; }
+.t-bubble {
+  max-width: 84%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.5;
+  background: var(--panel); border: 1px solid var(--stroke); backdrop-filter: blur(10px);
+}
+.t-row.you .t-bubble { background: rgba(34, 211, 238, .12); border-color: rgba(34,211,238,.3); }
+.t-who { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+
+/* ---------- subtitles (AR) ---------- */
+#subs {
+  position: fixed; z-index: 24; left: 50%; transform: translateX(-50%);
+  bottom: 132px; width: min(760px, 92vw); text-align: center; display: none; pointer-events: none;
+}
+body[data-mode="ar"][data-screen="app"] #subs { display: block; }
+#subs .line {
+  display: inline-block; padding: 10px 18px; border-radius: 14px; font-size: 16.5px; line-height: 1.45;
+  background: rgba(5, 8, 20, .72); border: 1px solid var(--stroke); backdrop-filter: blur(10px);
+  text-shadow: 0 1px 2px rgba(0,0,0,.6);
+}
+#subs .line.you { color: var(--green); }
+#subs .line:empty { display: none; }
+
+/* ---------- bottom dock ---------- */
+#dock {
+  position: fixed; z-index: 30; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 26px;
+  background: var(--panel); border: 1px solid var(--stroke); backdrop-filter: blur(16px);
+}
+.dock-btn {
+  width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--stroke); cursor: pointer;
+  background: rgba(16, 22, 46, .8); color: var(--text); font-size: 21px;
+  display: grid; place-items: center; position: relative; transition: all .15s;
+}
+.dock-btn:hover { border-color: rgba(34,211,238,.6); box-shadow: var(--glow-cyan); }
+.dock-btn:active { transform: scale(.93); }
+.dock-btn .lbl {
+  position: absolute; top: -26px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); opacity: 0;
+  transition: opacity .15s; pointer-events: none;
+}
+.dock-btn:hover .lbl { opacity: 1; }
+#micBtn {
+  width: 72px; height: 72px; font-size: 28px;
+  background: linear-gradient(160deg, rgba(34,211,238,.25), rgba(167,139,250,.25)), rgba(16,22,46,.9);
+  border-color: rgba(34,211,238,.5);
+}
+#micBtn.listening {
+  border-color: var(--green); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(52,211,153,.55); }
+  70% { box-shadow: 0 0 0 22px rgba(52,211,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+}
+.dock-btn.rec-on { border-color: var(--red); color: var(--red); animation: pulse-red 1.4s infinite; }
+@keyframes pulse-red {
+  0% { box-shadow: 0 0 0 0 rgba(251,113,133,.55); }
+  70% { box-shadow: 0 0 0 16px rgba(251,113,133,0); }
+  100% { box-shadow: 0 0 0 0 rgba(251,113,133,0); }
+}
+.dock-sep { width: 1px; height: 40px; background: var(--stroke); }
+body[data-mode="voice"] .ar-only, body[data-mode="voice"] .ar-only + .dock-sep { display: none; }
+
+/* ---------- question panel ---------- */
+#qPanel {
+  position: fixed; z-index: 35; top: calc(66px + env(safe-area-inset-top)); right: 14px;
+  bottom: calc(110px + env(safe-area-inset-bottom)); width: min(400px, calc(100vw - 28px));
+  display: flex; flex-direction: column; border-radius: 20px; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--stroke); backdrop-filter: blur(18px);
+  transform: translateX(calc(100% + 30px)); transition: transform .38s cubic-bezier(.5,0,.2,1);
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+body.qpanel-open #qPanel { transform: none; }
+#qPanel header { padding: 14px 16px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--stroke); }
+#qPanel header h3 { margin: 0; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; flex: 1; }
+.tabs { display: flex; gap: 6px; padding: 10px 14px 0; }
+.tab {
+  flex: 1; padding: 9px 0; border-radius: 12px; border: 1px solid transparent; cursor: pointer;
+  background: transparent; color: var(--muted); font-size: 13px; font-weight: 600;
+}
+.tab.active { background: rgba(34,211,238,.12); border-color: rgba(34,211,238,.4); color: var(--cyan); }
+#qSearch {
+  margin: 10px 14px 6px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--stroke);
+  background: rgba(8, 11, 26, .7); color: var(--text); font-size: 14px; outline: none;
+}
+#qSearch:focus { border-color: rgba(34,211,238,.5); }
+#qList { flex: 1; overflow-y: auto; padding: 8px 14px 14px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
+#qList::-webkit-scrollbar { width: 4px; }
+#qList::-webkit-scrollbar-thumb { background: rgba(120,160,255,.3); border-radius: 4px; }
+.topic {
+  border: 1px solid var(--stroke); border-radius: 14px; background: rgba(10, 14, 32, .55); overflow: hidden;
+  flex-shrink: 0;
+}
+.topic-head { display: flex; align-items: center; gap: 8px; padding: 11px 12px; cursor: pointer; }
+.topic-head .tt { flex: 1; font-size: 13.5px; font-weight: 650; line-height: 1.35; }
+.topic-head .tag { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; font-weight: 400; }
+.mini-btn {
+  width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--stroke); cursor: pointer;
+  background: rgba(16,22,46,.7); color: var(--text); font-size: 14px; display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.mini-btn.play { color: var(--green); border-color: rgba(52,211,153,.4); }
+.mini-btn.del { color: var(--red); }
+.topic-body { display: none; padding: 0 12px 12px; }
+.topic.open .topic-body { display: block; }
+.topic-body ol { margin: 6px 0 0; padding-left: 20px; color: var(--muted); font-size: 12.8px; line-height: 1.6; }
+.topic-body .cue { font-size: 12.8px; color: var(--text); background: rgba(34,211,238,.07); border: 1px solid rgba(34,211,238,.2); border-radius: 10px; padding: 9px 11px; margin-top: 8px; }
+.topic-body .cue ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
+.topic-body h5 { margin: 10px 0 0; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--violet); }
+
+/* ---------- gesture cursor ---------- */
+#gcursor {
+  position: fixed; z-index: 60; width: 34px; height: 34px; border-radius: 50%; pointer-events: none;
+  border: 2.5px solid var(--cyan); box-shadow: var(--glow-cyan), inset 0 0 12px rgba(34,211,238,.5);
+  transform: translate(-50%, -50%); display: none; transition: border-color .1s;
+}
+#gcursor.pinch { border-color: var(--green); box-shadow: 0 0 26px rgba(52,211,153,.7); transform: translate(-50%,-50%) scale(.72); }
+#gcursor::after { content:""; position:absolute; inset: 12px; border-radius: 50%; background: rgba(34,211,238,.8); }
+#gestureHint {
+  position: fixed; z-index: 55; top: calc(70px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: none; pointer-events: none;
+}
+body[data-mode="ar"][data-screen="app"] #gestureHint.show { display: block; }
+
+/* ---------- modals ---------- */
+.modal-veil {
+  position: fixed; inset: 0; z-index: 80; background: rgba(3, 5, 12, .7); backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center; padding: 18px;
+}
+.modal-veil.open { display: flex; }
+.modal {
+  width: min(520px, 94vw); max-height: 86vh; overflow-y: auto; border-radius: 22px; padding: 22px;
+  background: var(--panel-solid); border: 1px solid var(--stroke); box-shadow: 0 30px 90px rgba(0,0,0,.6);
+}
+.modal h3 { margin: 0 0 4px; font-size: 19px; }
+.modal .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; line-height: 1.5; }
+.f-row { margin-bottom: 14px; }
+.f-row label { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.f-row input[type="text"], .f-row input[type="password"], .f-row select, .f-row textarea {
+  width: 100%; padding: 11px 13px; border-radius: 12px; border: 1px solid var(--stroke);
+  background: rgba(8, 11, 26, .8); color: var(--text); font-size: 14.5px; outline: none; font-family: inherit;
+}
+.f-row textarea { min-height: 90px; resize: vertical; }
+.f-row input:focus, .f-row select:focus, .f-row textarea:focus { border-color: rgba(34,211,238,.5); }
+.f-note { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
+.f-note a { color: var(--cyan); }
+.modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.btn-primary {
+  padding: 11px 22px; border-radius: 13px; border: none; cursor: pointer; font-weight: 700; font-size: 14.5px;
+  background: linear-gradient(92deg, var(--cyan), var(--violet)); color: #04101d;
+}
+.btn-ghost {
+  padding: 11px 18px; border-radius: 13px; cursor: pointer; font-size: 14.5px;
+  background: transparent; border: 1px solid var(--stroke); color: var(--muted);
+}
+.seg { display: flex; gap: 6px; }
+.seg button {
+  flex: 1; padding: 9px; border-radius: 11px; border: 1px solid var(--stroke); background: transparent;
+  color: var(--muted); cursor: pointer; font-size: 13px;
+}
+.seg button.active { border-color: rgba(34,211,238,.5); color: var(--cyan); background: rgba(34,211,238,.1); }
+
+/* feedback modal */
+#fbBody { font-size: 14.5px; line-height: 1.65; }
+#fbBody h4 { color: var(--cyan); margin: 16px 0 6px; }
+#fbBody .band {
+  display: inline-block; font-size: 30px; font-weight: 800; padding: 8px 22px; border-radius: 16px;
+  background: rgba(34,211,238,.1); border: 1px solid rgba(34,211,238,.4); color: var(--cyan); margin: 6px 0;
+}
+#fbBody strong { color: var(--text); }
+#fbBody em { color: var(--violet); font-style: normal; }
+
+/* toast */
+#toast {
+  position: fixed; z-index: 100; bottom: calc(120px + env(safe-area-inset-bottom)); left: 50%;
+  transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none;
+  padding: 11px 20px; border-radius: 14px; background: rgba(10, 14, 30, .92); border: 1px solid var(--stroke);
+  font-size: 14px; transition: all .25s; max-width: 88vw; text-align: center;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* prep timer ring */
+#prepRing { position: fixed; z-index: 26; left: 50%; top: 50%; transform: translate(-50%,-50%); display: none; text-align: center; pointer-events: none; }
+#prepRing.show { display: block; }
+#prepRing .num { font-size: 64px; font-weight: 800; color: var(--amber); text-shadow: 0 0 30px rgba(251,191,36,.6); }
+#prepRing .cap { font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+
+@media (max-width: 720px) {
+  #dock { gap: 8px; padding: 10px 12px; }
+  .dock-btn { width: 46px; height: 46px; font-size: 18px; }
+  #micBtn { width: 62px; height: 62px; font-size: 24px; }
+  #orbWrap { top: 13%; }
+  #orb { width: 130px; height: 130px; }
+  #transcript { top: calc(13% + 200px); }
+  #qPanel { right: 8px; width: calc(100vw - 16px); }
+}
+</style>
+</head>
+<body data-screen="landing" data-mode="voice">
+
+<div id="stars"></div>
+<div class="grid-floor"></div>
+<video id="cam" autoplay playsinline muted></video>
+<div id="camShade"></div>
+
+<!-- ============ LANDING ============ -->
+<section class="screen" id="landing">
+  <div class="brand">
+    <div class="eyebrow">AI Speaking Examiner</div>
+    <h1>IELTS Speaking Lab</h1>
+    <p>Jan – Apr 2026 · Part 1 · Part 2 · Part 3 — real examiner experience in your browser</p>
+  </div>
+  <div class="modes">
+    <button class="mode-card" data-pick="voice">
+      <div class="ic">🎧</div>
+      <h2>Voice Mode</h2>
+      <p>Talk to the AI examiner like a voice call. Pick a topic, answer questions, get band-score feedback.</p>
+      <span class="chip"><span class="dot"></span> No camera needed</span>
+    </button>
+    <button class="mode-card" data-pick="ar">
+      <div class="ic">🪬</div>
+      <h2>AR Examiner</h2>
+      <p>Camera on, futuristic HUD. Control everything with hand gestures — pinch to tap, palm to open menu.</p>
+      <span class="chip"><span class="dot" style="background:var(--violet); box-shadow:0 0 10px var(--violet)"></span> Camera + gestures</span>
+    </button>
+  </div>
+  <div class="landing-foot">
+    <span id="qCount"></span>
+    <button class="link-btn" data-act="settings">⚙ Settings</button>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<section class="screen" id="app">
+  <div id="topbar">
+    <button class="hud-btn" data-act="exit" title="Back">‹ Exit</button>
+    <span class="chip" id="partChip">Ready</span>
+    <span class="chip" id="statusChip"><span class="dot"></span><span id="statusTxt">idle</span></span>
+    <button class="hud-btn" data-act="settings" title="Settings">⚙</button>
+  </div>
+
+  <div id="orbWrap">
+    <div id="orb"></div>
+    <div id="orbTag"><b>Examiner</b> · <span id="orbState">ready</span></div>
+  </div>
+
+  <div id="prepRing"><div class="num" id="prepNum">60</div><div class="cap">Preparation</div></div>
+
+  <div id="transcript"></div>
+
+  <div id="subs">
+    <div class="line" id="subExaminer"></div><br>
+    <div class="line you" id="subYou"></div>
+  </div>
+
+  <div id="dock">
+    <button class="dock-btn" data-act="toggle-questions" title="Questions"><span class="lbl">Questions</span>☰</button>
+    <button class="dock-btn" data-act="feedback" title="Feedback"><span class="lbl">Feedback</span>📊</button>
+    <div class="dock-sep"></div>
+    <button class="dock-btn" id="micBtn" data-act="mic" title="Speak"><span class="lbl">Speak</span>🎙</button>
+    <div class="dock-sep"></div>
+    <button class="dock-btn ar-only" data-act="photo" title="Photo"><span class="lbl">Photo</span>📸</button>
+    <button class="dock-btn ar-only" data-act="video" title="Record video"><span class="lbl">Video</span>🎥</button>
+    <button class="dock-btn" data-act="audio" title="Record audio"><span class="lbl">Audio rec</span>⏺</button>
+  </div>
+
+  <!-- question panel -->
+  <aside id="qPanel">
+    <header>
+      <h3>Questions</h3>
+      <button class="mini-btn" data-act="add-topic" title="Add">＋</button>
+      <button class="mini-btn" data-act="toggle-questions" title="Close">✕</button>
+    </header>
+    <div class="tabs">
+      <button class="tab active" data-tab="p1">Part 1</button>
+      <button class="tab" data-tab="p23">Part 2 & 3</button>
+    </div>
+    <input id="qSearch" type="text" placeholder="Search topics…">
+    <div id="qList"></div>
+  </aside>
+
+  <div id="gcursor"></div>
+  <span class="chip" id="gestureHint"></span>
+</section>
+
+<!-- ============ MODALS ============ -->
+<div class="modal-veil" id="settingsModal">
+  <div class="modal">
+    <h3>Settings</h3>
+    <p class="sub">The examiner needs a connection to Gemini. Use your teacher's Worker URL, or paste your own free API key from <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--cyan)">aistudio.google.com</a>.</p>
+    <div class="f-row">
+      <label>Worker URL (recommended)</label>
+      <input type="text" id="setWorker" placeholder="https://ielts-examiner.YOUR.workers.dev">
+      <div class="f-note">Keeps the API key hidden. Leave empty to use a direct key below.</div>
+    </div>
+    <div class="f-row">
+      <label>Gemini API key (fallback)</label>
+      <input type="password" id="setKey" placeholder="AIza…">
+    </div>
+    <div class="f-row">
+      <label>Examiner voice</label>
+      <div class="seg" id="setTts">
+        <button data-v="gemini" class="active">Gemini voice (natural)</button>
+        <button data-v="browser">Browser voice (free)</button>
+      </div>
+    </div>
+    <div class="f-row">
+      <label>Auto-listen after examiner speaks</label>
+      <div class="seg" id="setAuto">
+        <button data-v="on" class="active">On</button>
+        <button data-v="off">Off</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" data-act="close-modal">Cancel</button>
+      <button class="btn-primary" data-act="save-settings">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-veil" id="addModal">
+  <div class="modal">
+    <h3>Add topic</h3>
+    <p class="sub">Add your own topic — one question per line. It is saved on this device.</p>
+    <div class="f-row">
+      <label>Part</label>
+      <div class="seg" id="addPart">
+        <button data-v="p1" class="active">Part 1</button>
+        <button data-v="p23">Part 2 & 3</button>
+      </div>
+    </div>
+    <div class="f-row"><label>Topic title</label><input type="text" id="addTitle" placeholder="e.g. TECHNOLOGY"></div>
+    <div class="f-row" id="addCueRow" style="display:none">
+      <label>Cue card (Describe…)</label>
+      <input type="text" id="addCue" placeholder="Describe a gadget you cannot live without.">
+    </div>
+    <div class="f-row">
+      <label id="addQLabel">Questions (one per line)</label>
+      <textarea id="addQs" placeholder="Do you like technology?&#10;How often do you use your phone?"></textarea>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" data-act="close-modal">Cancel</button>
+      <button class="btn-primary" data-act="save-topic">Add topic</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-veil" id="fbModal">
+  <div class="modal">
+    <h3>Examiner feedback</h3>
+    <div id="fbBody"><p class="sub">…</p></div>
+    <div class="actions"><button class="btn-primary" data-act="close-modal">Close</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="questions.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
