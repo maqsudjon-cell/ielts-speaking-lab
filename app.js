@@ -456,7 +456,7 @@ function renderFeedback(md) {
   h = h.replace(/^BAND:\s*(.+)$/m, '<div style="text-align:center"><div class="band">Band $1</div></div>');
   h = h.replace(/^## (.+)$/gm, '<h4>$1</h4>');
   h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  h = h.replace(/"([^"]{8,})"/g, '<em>“$1”</em>');
+  h = h.replace(/&quot;([^&]{8,}?)&quot;/g, '<em>“$1”</em>');
   h = h.replace(/^(\d+)\. (.+)$/gm, '<p><strong>$1.</strong> $2</p>');
   h = h.split(/\n{2,}/).map(p => p.startsWith('<') ? p : `<p>${p}</p>`).join('');
   return h;
